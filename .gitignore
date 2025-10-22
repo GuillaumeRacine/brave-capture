@@ -1,0 +1,29 @@
+# Environment files with secrets
+.env.local
+.env
+
+# Node modules
+node_modules/
+
+# macOS files
+.DS_Store
+._*
+
+# Chrome extension packaging
+*.crx
+*.pem
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor directories
+.vscode/
+.idea/
+
+# Test coverage
+coverage/
