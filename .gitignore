@@ -2,6 +2,9 @@
 .env.local
 .env
 
+# Auto-generated config with credentials (DO NOT COMMIT)
+config.js
+
 # Node modules
 node_modules/
 
@@ -27,3 +30,19 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# Local capture data (personal position data - DO NOT COMMIT)
+captures/
+*.json
+!package.json
+!package-lock.json
+!manifest.json
+!tsconfig.json
+
+# Claude Code settings (may contain personal data)
+.claude/settings.local.json
+
+# Temporary test files
+test-*.html
+test-*.js
+!test-supabase-data.js

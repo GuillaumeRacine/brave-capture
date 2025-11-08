@@ -43,6 +43,7 @@ A powerful Chrome extension for capturing and tracking Concentrated Liquidity Ma
    - **Vault details:** Individual position with full range
    - Supports Uniswap, PancakeSwap, and other underlying protocols
    - Network/chain detection
+   - **Auto-adjustment:** Always marked as in-range (auto-rebalancing)
 
 7. **PancakeSwap** (Base, BSC) ✅
    - Position details page parsing
@@ -52,21 +53,40 @@ A powerful Chrome extension for capturing and tracking Concentrated Liquidity Ma
 
 ### 📊 Comprehensive Position Data
 For each position, the extension captures:
-- Token pair and fee tier
-- Current balance (USD value)
-- Pending yield
-- APY/APR
-- Price range (min/max)
-- Current price
-- In-range status (automatic detection)
-- Distance from range boundaries
+- **Token pair** and fee tier (e.g., "SOL/USDC 0.04%")
+- **Current balance** (USD value)
+- **Pending yield** (unclaimed rewards/fees)
+- **APY/APR** (annualized percentage yield)
+- **Price range:** min/max boundaries
+- **Current price** (real-time from protocol)
+- **In-range status** (automatic detection)
+- **Distance from range** boundaries (percentage above/below)
+- **Token breakdown** (NEW in v1.2):
+  - `token0Amount`: Quantity of first token (e.g., 46.5366441 SOL)
+  - `token0Percentage`: Percentage of value in first token (e.g., 37.6%)
+  - `token0Value`: USD value of first token (e.g., $7,612.31)
+  - `token1Amount`: Quantity of second token (e.g., 12654.5291 USDC)
+  - `token1Percentage`: Percentage of value in second token (e.g., 62.4%)
+  - `token1Value`: USD value of second token (e.g., $12,652.93)
+  - **Extraction method:** Parses from position detail panels when open
+  - **Fallback:** Calculates 50/50 split if detail panel unavailable
+
+### 💾 Dual Storage System
+- **Supabase Database:** Cloud storage for queryable position data
+  - `captures` table: Full capture history with JSONB data
+  - `positions` table: Denormalized position data for fast queries
+  - Historical tracking and comparison
+  - Real-time dashboard updates
+- **Local File Export:** Timestamped JSON files for backup
+  - Format: `[protocol-url]_[YYYY-MM-DD]_[HH-MM-SS].json`
+  - Auto-organized: `captures/[protocol]/[YYYY-MM]/`
+  - Complete position history for timeline analysis
 
 ### 🤖 AI-Powered Validation
 - Automatic data quality checks after each capture
-- Claude AI integration for anomaly detection
-- Identifies missing data, inconsistencies, and outliers
-- Provides data quality scores and recommendations
-- Infers missing values from context
+- Basic validation: Missing data, invalid ranges, negative values
+- Historical comparison with previous captures
+- Identifies critical changes requiring attention
 
 ### 📈 Historical Tracking & Comparison
 Automatic detection of:
@@ -78,14 +98,62 @@ Automatic detection of:
 - Total portfolio value changes (>20%)
 
 ### 📱 Interactive Dashboard
-- Beautiful visual interface for all your positions
+- **Compact table layout** optimized for many positions
+- **Auto-refresh:** Updates every 30 seconds automatically
+- **Manual refresh:** Click button to reload latest data from Supabase
+- **Smart filtering:**
+  - Automatically hides positions under $1,000
+  - Beefy positions always shown as in-range (auto-adjusts)
+- **Weighted APY calculation** (larger positions weighted more heavily)
 - Filter by protocol or in-range status
-- Real-time statistics (total value, avg APY, in-range rate)
+- Sortable columns (click headers to sort)
+- Real-time statistics:
+  - Total positions count
+  - In-range percentage
+  - Total portfolio value
+  - Pending yield total
+  - Weighted average APY
 - Visual range indicators showing current price position
-- Export filtered positions to JSON
+- Sticky header for easy scrolling through many positions
 - Responsive design for mobile and desktop
 
+### ⚡ Performance Optimizations (v1.2)
+- **Dynamic data detection:** Uses MutationObserver instead of polling
+  - **Old method:** Poll every 200ms for up to 5 seconds (5000ms worst case)
+  - **New method:** Responds instantly when DOM changes (2-3ms typical)
+  - **99.96% faster** on subsequent captures (data already loaded)
+- **Instant ready check:** Skips wait if data already present on page
+- **Protocol-specific detection:** Each protocol has custom ready-state logic
+- **Background validation:** Non-blocking AI validation and historical comparison
+- **Immediate UI feedback:** Button responds instantly on click
+- **Cached queries:** 30-second cache for dashboard data (configurable)
+
 ## Installation
+
+### Prerequisites
+
+1. **Supabase Account** (Free tier works)
+   - Create account at https://supabase.com
+   - Create a new project
+   - Note your project URL and anon key
+
+2. **Environment Setup**
+   - Create `.env.local` file with Supabase credentials:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+   ```
+
+3. **Database Setup**
+   - Run SQL schema from `SUPABASE_SETUP.md`
+   - Creates `captures` and `positions` tables
+   - Sets up indexes and RLS policies
+
+4. **Build Configuration**
+   ```bash
+   npm install
+   npm run build:config  # Generates config.js from .env.local
+   ```
 
 ### Developer Mode Installation
 
@@ -104,6 +172,11 @@ brave-capture/
 ├── popup.js
 ├── content.js
 ├── background.js
+├── config.js (auto-generated from .env.local)
+├── supabase.js (local Supabase client library)
+├── supabase-client.js
+├── file-storage.js
+├── dashboard.html
 ├── icons/
 │   ├── icon16.png
 │   ├── icon48.png
@@ -113,13 +186,32 @@ brave-capture/
 
 ## Usage
 
+### Capturing Token Breakdown Data
+
+To capture individual token amounts and percentages (not just total USD value):
+
+1. Navigate to your position on the protocol
+2. **Open the position detail panel/modal** (click on the position)
+3. Make sure the detail panel shows token amounts like:
+   - "46.5366441 SOL (37.6%) = $7,612.31"
+   - "12654.5291 USDC (62.4%) = $12,652.93"
+4. With the detail panel **still open**, click "Capture Page Data"
+5. The extension will extract token breakdown from the visible panel
+
+**If detail panel not available:**
+- Extension will use 50/50 estimate based on current price
+- Token amounts calculated: `tokenValue = totalBalance × 50%`
+- This provides approximate breakdown for tracking purposes
+
+**Supported on all 7 protocols** when detail panels are accessible.
+
 ### Basic Capture
 
 1. Navigate to your DeFi protocol's portfolio/positions page:
 
    **Orca (Solana):**
-   - Positions list: `https://www.orca.so/liquidity`
-   - Individual position details also supported
+   - Portfolio page: `https://www.orca.so/portfolio`
+   - Captures all CLM positions with full metrics
 
    **Raydium (Solana):**
    - Portfolio page: `https://raydium.io/portfolio/`
@@ -149,11 +241,12 @@ brave-capture/
 
 2. Click the Brave Capture extension icon
 3. Click "Capture Page Data"
-4. Wait 2 seconds for dynamic content to load (automatic for Hyperion, Beefy, PancakeSwap)
-5. The extension will:
+4. The extension will:
    - Automatically detect the protocol
    - Parse all position data
    - Validate the data quality
+   - Save to Supabase database
+   - Export timestamped JSON file to Downloads
    - Compare with previous captures
    - Show you any warnings or critical changes
 
@@ -172,82 +265,112 @@ The extension also captures:
 
 ### Viewing Captured Data
 
+#### In the Dashboard
+
+1. Open `dashboard.html` in your browser
+2. The dashboard shows:
+   - **Statistics cards:**
+     - Total Positions (excluding positions under $1K)
+     - In Range count and percentage
+     - Total Value (sum of all positions)
+     - Pending Yield (total unclaimed rewards)
+     - Weighted APY (weighted by position size)
+   - **Position table:**
+     - Protocol badge
+     - Pair name
+     - Range status badge
+     - Balance, APY, Pending Yield
+     - Price range (Min/Current/Max)
+     - Visual range indicator
+     - Time since capture
+   - **Filters:**
+     - Protocol filter (Orca, Raydium, Beefy, etc.)
+     - Range status (All, In Range, Out of Range)
+     - Sort options (Balance, APY, Pair, etc.)
+   - **Smart filtering:**
+     - Automatically hides positions under $1,000
+     - Beefy positions always marked as in-range
+
 #### In the Extension Popup
 - Recent captures displayed (last 5)
 - Domain and timestamp for each
 - Export button to download all captures as JSON
 
-#### In the Dashboard
-1. Right-click the extension icon → Inspect
-2. Or navigate to `chrome-extension://<extension-id>/dashboard.html`
-3. The dashboard shows:
-   - Statistics cards (total positions, value, avg APY, in-range rate)
-   - All positions as visual cards
-   - Filters by protocol and status
-   - Visual range indicators
-   - Export functionality
+#### In Supabase Dashboard
+1. Go to https://supabase.com/dashboard
+2. Select your project
+3. Navigate to Table Editor
+4. View `captures` table for full capture history
+5. View `positions` table for individual position data
+6. Use SQL Editor for custom queries
 
-### Data Storage
+### Data Storage Locations
 
-- Captures stored locally in Chrome's storage
-- Maximum 1000 captures retained
-- Each capture includes full position data and metadata
-- Historical comparison against previous captures
+**Supabase Database:**
+- `captures` table: Complete capture metadata and JSONB data
+- `positions` table: Individual positions for fast queries
+- Queryable, filterable, and sortable
+
+**Local Files:**
+- Location: `~/Downloads/captures/[protocol]/[YYYY-MM]/`
+- Format: `[protocol]_[YYYY-MM-DD]_[HH-MM-SS].json`
+- Example: `orca-so_2025-10-27_19-53-24.json`
+- Complete backup of all capture data
+
+## Dashboard Business Rules
+
+### Position Filtering
+- **Minimum Balance:** Only positions with balance >= $1,000 are displayed
+- **Rationale:** Small positions don't require active monitoring
+
+### Beefy Finance Handling
+- **Auto-adjustment:** Beefy vaults automatically rebalance ranges
+- **Display:** Always marked as "In Range" (green badge)
+- **Rationale:** No need to track range status for auto-managed positions
+
+### APY Calculation
+- **Method:** Weighted average based on position balance
+- **Formula:** `Σ(balance × APY) / Σ(balance)`
+- **Example:**
+  - Position A: $100,000 @ 10% APY
+  - Position B: $1,000 @ 100% APY
+  - Weighted APY: ($100K×10% + $1K×100%) / $101K = 10.89%
+- **Rationale:** Larger positions contribute proportionally to portfolio yield
 
 ## Advanced Features
 
-### AI-Powered Validation Script
+### Clear Database
 
-For deeper analysis of your captured data, use the standalone validation script:
+To reset and start fresh (useful before capturing real positions):
 
 ```bash
-# Install dependencies
-npm install
-
-# Run validation on a captured file
-npm run validate path/to/capture.json
+node clear-database.js
 ```
 
-The validation script performs:
-1. **Basic Sanity Checks**: Missing data, invalid ranges, negative values, logic errors
-2. **AI Analysis**: Anomaly detection, data quality scoring, recommendations, inferred values
+This will:
+- Delete all positions from `positions` table
+- Delete all captures from `captures` table
+- Show before/after counts
+- Verify complete deletion
 
-Example output:
-```
-📊 Validating capture: brave-capture-2025-10-21.json
-═══════════════════════════════════════════════════════════
+**Use cases:**
+- Clearing test data before production use
+- Starting fresh tracking period
+- Removing old/invalid captures
 
-🔍 Step 1: Basic Sanity Checks
-
-✅ No critical issues found
-
-🤖 Step 2: AI-Powered Analysis
-
-Overall Data Quality: 92/100
-
-Specific Issues:
-- Position SOL/USDC (0.01%): Price very close to upper bound
-- Position ETH/USDC: APY seems low for current market conditions
-
-Recommendations:
-- Monitor SOL/USDC position - may go out of range soon
-- Consider adjusting ETH/USDC range for better capital efficiency
-
-═══════════════════════════════════════════════════════════
-```
-
-### Environment Setup
-
-Create a `.env.local` file with your API keys:
-
-```env
-ANTHROPIC_API_KEY=your_claude_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-```
+**Note:** This only clears Supabase. Local JSON files in `~/Downloads/captures/` are preserved as backup.
 
 ### Export Data
 
-Click the "Export Captured Data" button in the extension popup to download all captures as JSON. You can also export from the dashboard with filters applied.
+Click the "Export Captured Data" button in the extension popup to download all captures as JSON. Files are automatically saved to your Downloads folder with timestamps.
+
+### Timeline Viewer
+
+Open `timeline.html` to view:
+- Chronological history of all captures
+- Side-by-side comparisons between captures
+- Change detection (positions added/removed, range changes, etc.)
+- Visual indicators for critical changes
 
 ## Data Structure
 
@@ -256,44 +379,46 @@ Each capture contains:
 ```json
 {
   "id": "capture_1234567890_abc123",
-  "url": "https://www.orca.so/liquidity",
-  "title": "Orca - Concentrated Liquidity",
-  "timestamp": "2025-10-21T18:55:08.962Z",
-  "protocol": "Orca",
+  "url": "https://www.orca.so/portfolio",
+  "title": "Orca | Portfolio",
+  "timestamp": "2025-10-27T19:53:24.831Z",
+  "protocol": "orca",
   "data": {
+    "protocol": "orca",
     "content": {
       "clmPositions": {
         "summary": {
-          "totalValue": "12345.67",
-          "estimatedYieldAmount": "234.56",
-          "estimatedYieldPercent": "15.2",
-          "pendingYield": "12.34"
+          "totalValue": "110441.33",
+          "estimatedYieldAmount": "N/A",
+          "estimatedYieldPercent": "N/A",
+          "pendingYield": "244.86"
         },
         "positions": [
           {
             "token0": "SOL",
             "token1": "USDC",
             "pair": "SOL/USDC",
-            "feeTier": "0.01",
-            "balance": 5432.10,
-            "balanceFormatted": "5,432.10",
-            "pendingYield": 8.50,
-            "apy": 45.2,
-            "rangeMin": 470.12,
-            "rangeMax": 636.11,
-            "rangeMinPercent": "-18.42%",
-            "rangeMaxPercent": "+10.39%",
-            "currentPrice": 577.25,
-            "currentPriceFormatted": "577.25",
+            "feeTier": "0.04",
+            "balance": 20265.24,
+            "pendingYield": 119.91,
+            "apy": 104.262,
+            "rangeMin": 126.65,
+            "rangeMax": 190,
+            "currentPrice": 163.29,
             "inRange": true,
             "rangeStatus": "in-range",
+            "rangeMinPercent": "-22.43%",
+            "rangeMaxPercent": "+16.36%",
             "distanceFromRange": "0%",
-            "capturedAt": "2025-10-21T18:55:08.962Z"
+            "token0Amount": 46.5366441,
+            "token0Percentage": 37.6,
+            "token0Value": 7612.31,
+            "token1Amount": 12654.5291,
+            "token1Percentage": 62.4,
+            "token1Value": 12652.93,
+            "capturedAt": "2025-11-08T12:31:26.969Z"
           }
-        ],
-        "positionCount": 6,
-        "inRangeCount": 6,
-        "outOfRangeCount": 0
+        ]
       }
     }
   }
@@ -302,76 +427,66 @@ Each capture contains:
 
 ## Privacy & Security
 
-- All data is stored locally on your device
-- No data is sent to external servers
-- Passwords fields are automatically redacted
-- The extension only has access to the active tab when you click capture
+- Database credentials stored in `.env.local` (not committed to git)
+- Local files saved to your Downloads folder
+- Extension only accesses active tab when you click capture
+- No tracking or analytics
+- Open source - audit the code yourself
 
 ## Development
 
-### Adding Custom Capture Rules
-
-To capture specific elements on certain sites, add data attributes to elements:
-
-- `data-capture`: Mark element for capture
-- `data-track`: Track element changes
-- `class="capture-this"`: Alternative capture marker
-
-### Extending Capture Functionality
-
-Modify `content.js` to add custom capture logic:
-
-```javascript
-function captureCustomData() {
-  // Your custom capture logic
-  return customData;
-}
-```
+See `DEVELOPMENT.md` for:
+- Architecture overview
+- Adding new protocol parsers
+- Extending validation logic
+- Testing procedures
+- Common issues and solutions
 
 ## Troubleshooting
 
-### Extension Not Working
+### Extension Not Loading
 
-1. Ensure the extension is enabled in `chrome://extensions/`
-2. Reload the extension after any file changes
-3. Check browser console (F12) for error messages
-4. Verify all required files are present
+1. Check `chrome://extensions/` for errors
+2. Verify all required files are present
+3. Ensure `config.js` exists (run `npm run build:config`)
+4. Check that `supabase.js` is downloaded locally
+
+### Supabase Connection Issues
+
+1. Verify `.env.local` has correct credentials
+2. Run `npm run build:config` to regenerate config.js
+3. Check Supabase project is active and accessible
+4. Verify database tables exist (run SQL from SUPABASE_SETUP.md)
 
 ### Protocol Not Detected
 
-If the extension doesn't detect your protocol:
 1. Check that you're on the correct page (portfolio/liquidity page)
 2. Ensure the URL matches one of the supported hostnames
-3. Open an issue with the URL and screenshot for support
+3. Open browser console (F12) and look for protocol detection messages
+4. Check `content.js` for protocol detection logic
 
 ### Positions Not Parsing Correctly
 
-Some protocols may have different UI structures:
-1. Export the raw capture data
-2. Check the browser console for parsing errors
-3. The parsers may need adjustment for your specific protocol version
-4. Consider opening an issue with sample data (remove sensitive info)
+1. Open browser console (F12) for parsing error messages
+2. Check if protocol UI has changed (parsers may need updates)
+3. Export raw capture data and inspect structure
+4. See `PROTOCOL_PARSERS.md` for detailed parsing documentation
 
-### Dashboard Not Loading
+### Dashboard Not Loading Positions
 
-1. Check that dashboard.html is in the extension directory
-2. Right-click extension icon → Inspect → navigate to dashboard.html
-3. Look for JavaScript errors in the console
-4. Ensure Chrome storage has captured data
+1. Verify Supabase connection (check browser console)
+2. Ensure captures exist in database (check Supabase dashboard)
+3. Check that positions meet minimum $1K balance threshold
+4. Try clicking "Refresh" button in dashboard
 
-### AI Validation Failing
+## Testing
 
-1. Check that `.env.local` has valid API keys
-2. Ensure you have internet connectivity
-3. Verify API key format (should start with `sk-ant-api03-`)
-4. Check API rate limits and quota
-
-## Icons Required
-
-Create simple PNG icons or use placeholder images:
-- 16x16px - Toolbar icon
-- 48x48px - Extension management page
-- 128x128px - Chrome Web Store (if publishing)
+See `TESTING_GUIDE.md` for comprehensive testing instructions including:
+- Extension loading verification
+- Content script injection testing
+- Capture workflow testing
+- Database verification
+- Dashboard functionality testing
 
 ## License
 
@@ -381,44 +496,13 @@ MIT License - Feel free to modify and distribute
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
-## Future Enhancements
+## Changelog
 
-### Position Management
-- [ ] Browser notifications when positions go out of range
-- [ ] Automatic rebalancing suggestions
-- [ ] Impermanent loss calculator
-- [ ] Fee earnings vs IL comparison
+See `CHANGES.md` for detailed version history and updates.
 
-### Data & Analytics
-- [ ] Time-series charts for position value over time
-- [ ] APY trend analysis
-- [ ] Portfolio correlation analysis
-- [ ] Export to CSV for spreadsheet analysis
-- [ ] Integration with portfolio trackers (DeBank, Zapper)
+## Support
 
-### Multi-Protocol Features
-- [ ] Cross-protocol position aggregation
-- [ ] Best APY finder across all protocols
-- [ ] Gas cost tracking for rebalancing
-- [ ] Protocol comparison metrics
-
-### Advanced Validation
-- [ ] Machine learning for pattern detection
-- [ ] Predictive alerts for likely out-of-range positions
-- [ ] Historical performance analysis
-- [ ] Risk scoring for each position
-
-### Collaboration
-- [ ] Share portfolio snapshots (anonymized)
-- [ ] Community position strategies
-- [ ] Webhook notifications to Discord/Telegram
-- [ ] API endpoint for external access
-
-### Testing & Refinement
-- [x] Orca parser (fully tested)
-- [ ] Raydium parser (needs testing)
-- [ ] Aerodrome parser (needs testing)
-- [ ] Cetus parser (needs testing)
-- [ ] Hyperion parser (needs testing)
-- [ ] PancakeSwap parser (needs testing)
-- [ ] Beefy parser (needs testing)
+For issues, questions, or feature requests:
+1. Check existing documentation in the `/docs` folder
+2. Search existing GitHub issues
+3. Open a new issue with detailed description and logs

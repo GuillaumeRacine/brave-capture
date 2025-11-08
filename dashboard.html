@@ -15,50 +15,70 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #333;
-      padding: 20px;
+      padding: 15px;
       min-height: 100vh;
+      font-size: 13px;
     }
 
     .container {
-      max-width: 1400px;
+      max-width: 1800px;
       margin: 0 auto;
     }
 
     header {
       background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      margin-bottom: 30px;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     h1 {
       color: #667eea;
-      margin-bottom: 10px;
-      font-size: 2em;
+      font-size: 1.5em;
     }
 
     .subtitle {
       color: #666;
-      font-size: 1em;
+      font-size: 0.85em;
+    }
+
+    .refresh-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9em;
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
     }
 
     .filters {
       background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      margin-bottom: 30px;
+      padding: 12px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 15px;
       display: flex;
-      gap: 15px;
+      gap: 12px;
       flex-wrap: wrap;
       align-items: center;
     }
 
     .filter-group {
       display: flex;
-      flex-direction: column;
-      gap: 5px;
+      align-items: center;
+      gap: 8px;
     }
 
     .filter-group label {
@@ -67,13 +87,13 @@
       font-weight: 600;
     }
 
-    select, button {
-      padding: 10px 20px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      font-size: 0.95em;
+    select {
+      padding: 6px 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 0.9em;
       cursor: pointer;
-      transition: all 0.3s;
+      background: white;
     }
 
     select:hover, select:focus {
@@ -81,483 +101,373 @@
       outline: none;
     }
 
-    button {
-      background: #667eea;
-      color: white;
-      border: none;
-      font-weight: 600;
-    }
-
-    button:hover {
-      background: #5568d3;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 15px;
     }
 
     .stat-card {
       background: white;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      transition: transform 0.3s;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      padding: 12px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     .stat-label {
-      font-size: 0.85em;
+      font-size: 0.75em;
       color: #666;
       text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
     }
 
     .stat-value {
-      font-size: 2.5em;
+      font-size: 1.6em;
       font-weight: bold;
       color: #667eea;
     }
 
     .stat-subtext {
-      font-size: 0.9em;
-      color: #999;
-      margin-top: 5px;
-    }
-
-    .positions-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-
-    .position-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      transition: all 0.3s;
-      border-left: 5px solid #667eea;
-    }
-
-    .position-card.out-of-range {
-      border-left-color: #f44336;
-    }
-
-    .position-card.in-range {
-      border-left-color: #4caf50;
-    }
-
-    .position-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-    }
-
-    .position-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 15px;
-      padding-bottom: 15px;
-      border-bottom: 2px solid #f0f0f0;
-    }
-
-    .position-pair {
-      font-size: 1.3em;
-      font-weight: bold;
-      color: #333;
-    }
-
-    .position-protocol {
-      font-size: 0.75em;
-      color: white;
-      background: #667eea;
-      padding: 4px 10px;
-      border-radius: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .position-status {
-      display: inline-block;
-      padding: 6px 12px;
-      border-radius: 20px;
       font-size: 0.8em;
-      font-weight: 600;
-      margin-top: 8px;
-    }
-
-    .status-in-range {
-      background: #e8f5e9;
-      color: #2e7d32;
-    }
-
-    .status-out-of-range {
-      background: #ffebee;
-      color: #c62828;
-    }
-
-    .position-metrics {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 15px;
-      margin-top: 15px;
-    }
-
-    .metric {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .metric-label {
-      font-size: 0.75em;
       color: #999;
+      margin-top: 4px;
+    }
+
+    /* Compact Table Layout */
+    .positions-table-container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .positions-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9em;
+    }
+
+    .positions-table thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .positions-table th {
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .positions-table th.right {
+      text-align: right;
+    }
+
+    .positions-table th.center {
+      text-align: center;
+    }
+
+    .positions-table tbody tr {
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.2s;
+    }
+
+    .positions-table tbody tr:hover {
+      background: #f8f9ff;
+    }
+
+    .positions-table tbody tr.out-of-range {
+      background: #fff5f5;
+    }
+
+    .positions-table tbody tr.out-of-range:hover {
+      background: #ffebee;
+    }
+
+    .positions-table td {
+      padding: 10px 12px;
+      vertical-align: middle;
+    }
+
+    .positions-table td.right {
+      text-align: right;
+    }
+
+    .positions-table td.center {
+      text-align: center;
+    }
+
+    .pair-cell {
+      font-weight: 700;
+      color: #333;
+      font-size: 1em;
+    }
+
+    .protocol-badge {
+      display: inline-block;
+      background: #e8eaf6;
+      color: #667eea;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
-    .metric-value {
-      font-size: 1.1em;
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.8em;
       font-weight: 600;
-      color: #333;
+      white-space: nowrap;
     }
 
-    .range-bar {
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid #f0f0f0;
+    .status-badge.in-range {
+      background: #e8f5e9;
+      color: #2e7d32;
     }
 
-    .range-bar-label {
-      font-size: 0.75em;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
+    .status-badge.out-of-range {
+      background: #ffebee;
+      color: #c62828;
     }
 
-    .range-bar-container {
+    .value-positive {
+      color: #2e7d32;
+      font-weight: 600;
+    }
+
+    .value-negative {
+      color: #c62828;
+      font-weight: 600;
+    }
+
+    .value-neutral {
+      color: #666;
+      font-weight: 600;
+    }
+
+    .range-indicator {
+      width: 100%;
+      max-width: 150px;
+      height: 6px;
+      background: #f0f0f0;
+      border-radius: 3px;
       position: relative;
-      height: 30px;
-      background: linear-gradient(to right, #ffebee 0%, #e8f5e9 50%, #ffebee 100%);
-      border-radius: 15px;
       overflow: hidden;
+    }
+
+    .range-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50 0%, #8bc34a 100%);
+      border-radius: 3px;
+      transition: width 0.3s;
     }
 
     .range-marker {
       position: absolute;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 4px;
-      height: 40px;
+      top: -2px;
+      width: 2px;
+      height: 10px;
       background: #333;
-      z-index: 2;
+      border-radius: 1px;
     }
 
-    .range-marker::after {
-      content: '';
-      position: absolute;
-      top: -5px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 0;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-top: 8px solid #333;
-    }
-
-    .range-bounds {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 5px;
-      font-size: 0.75em;
+    .price-info {
+      font-size: 0.85em;
       color: #666;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
-    .empty-state {
+    .current-price {
+      font-weight: 700;
+      color: #333;
+    }
+
+    .no-data {
       text-align: center;
-      padding: 60px 20px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .empty-state h3 {
-      color: #667eea;
-      margin-bottom: 10px;
-      font-size: 1.5em;
-    }
-
-    .empty-state p {
+      padding: 40px;
       color: #999;
-      font-size: 1em;
+      font-size: 1.1em;
     }
 
     .timestamp {
-      font-size: 0.75em;
       color: #999;
-      margin-top: 10px;
+      font-size: 0.8em;
     }
 
-    @media (max-width: 768px) {
-      .positions-grid {
-        grid-template-columns: 1fr;
+    /* Sortable headers */
+    .positions-table th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .positions-table th.sortable:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .positions-table th.sortable::after {
+      content: ' ↕';
+      opacity: 0.5;
+      font-size: 0.8em;
+    }
+
+    .positions-table th.sortable.asc::after {
+      content: ' ↑';
+      opacity: 1;
+    }
+
+    .positions-table th.sortable.desc::after {
+      content: ' ↓';
+      opacity: 1;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 1400px) {
+      .positions-table {
+        font-size: 0.85em;
       }
 
-      .stats {
-        grid-template-columns: 1fr;
+      .positions-table th,
+      .positions-table td {
+        padding: 8px 10px;
       }
+    }
 
-      .filters {
-        flex-direction: column;
-        align-items: stretch;
-      }
+    /* Loading state */
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #667eea;
+      font-size: 1.1em;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(102, 126, 234, 0.3);
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>📊 CLM Position Dashboard</h1>
-      <p class="subtitle">Monitor your concentrated liquidity positions across all protocols</p>
+      <div>
+        <h1>CLM Position Dashboard</h1>
+        <div class="subtitle">Real-time concentrated liquidity positions across protocols</div>
+      </div>
+      <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
     </header>
 
     <div class="filters">
       <div class="filter-group">
-        <label>Protocol</label>
-        <select id="protocolFilter">
+        <label for="protocolFilter">Protocol:</label>
+        <select id="protocolFilter" onchange="applyFilters()">
           <option value="all">All Protocols</option>
-          <option value="Orca">Orca</option>
-          <option value="Raydium">Raydium</option>
-          <option value="Aerodrome">Aerodrome</option>
-          <option value="Cetus">Cetus</option>
-          <option value="Hyperion">Hyperion</option>
-          <option value="PancakeSwap">PancakeSwap</option>
-          <option value="Beefy">Beefy</option>
         </select>
       </div>
 
       <div class="filter-group">
-        <label>Status</label>
-        <select id="statusFilter">
-          <option value="all">All Positions</option>
+        <label for="rangeFilter">Range Status:</label>
+        <select id="rangeFilter" onchange="applyFilters()">
+          <option value="all">All</option>
           <option value="in-range">In Range</option>
           <option value="out-of-range">Out of Range</option>
         </select>
       </div>
 
-      <button id="refreshBtn">🔄 Refresh Data</button>
-      <button id="exportBtn">📥 Export Data</button>
+      <div class="filter-group">
+        <label for="sortBy">Sort By:</label>
+        <select id="sortBy" onchange="applyFilters()">
+          <option value="balance-desc">Balance (High to Low)</option>
+          <option value="balance-asc">Balance (Low to High)</option>
+          <option value="apy-desc">APY (High to Low)</option>
+          <option value="apy-asc">APY (Low to High)</option>
+          <option value="pair-asc">Pair (A-Z)</option>
+        </select>
+      </div>
     </div>
 
-    <div class="stats" id="stats"></div>
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Positions</div>
+        <div class="stat-value" id="totalPositions">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">In Range</div>
+        <div class="stat-value" id="inRangeCount">-</div>
+        <div class="stat-subtext" id="inRangePercent"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Value</div>
+        <div class="stat-value" id="totalValue">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending Yield</div>
+        <div class="stat-value" id="totalPendingYield">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Weighted APY</div>
+        <div class="stat-value" id="avgAPY">-</div>
+      </div>
+    </div>
 
-    <div class="positions-grid" id="positionsGrid"></div>
-
-    <div class="empty-state" id="emptyState" style="display: none;">
-      <h3>No positions found</h3>
-      <p>Use the browser extension to capture your CLM positions from supported protocols.</p>
+    <div class="positions-table-container">
+      <table class="positions-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="protocol">Protocol</th>
+            <th class="sortable" data-sort="pair">Pair</th>
+            <th class="center sortable" data-sort="status">Status</th>
+            <th class="right sortable" data-sort="balance">Balance</th>
+            <th class="right sortable" data-sort="apy">APY</th>
+            <th class="right sortable" data-sort="pending">Pending Yield</th>
+            <th class="sortable" data-sort="range">Price Range</th>
+            <th class="center">Range Position</th>
+            <th class="right sortable" data-sort="timestamp">Captured</th>
+          </tr>
+        </thead>
+        <tbody id="positionsTableBody">
+          <tr>
+            <td colspan="9" class="loading">
+              <div class="spinner"></div>
+              <div>Loading positions...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <script>
-    let allCaptures = [];
-    let filteredPositions = [];
-
-    // Load captures from Chrome storage
-    function loadCaptures() {
-      chrome.storage.local.get(['captures'], (result) => {
-        allCaptures = result.captures || [];
-        applyFilters();
-      });
-    }
-
-    // Apply filters and update display
-    function applyFilters() {
-      const protocolFilter = document.getElementById('protocolFilter').value;
-      const statusFilter = document.getElementById('statusFilter').value;
-
-      // Get all positions from all captures
-      const allPositions = [];
-      allCaptures.forEach(capture => {
-        if (capture.data?.content?.clmPositions?.positions) {
-          capture.data.content.clmPositions.positions.forEach(pos => {
-            allPositions.push({
-              ...pos,
-              protocol: capture.protocol,
-              captureTimestamp: capture.timestamp,
-              url: capture.url
-            });
-          });
-        }
-      });
-
-      // Apply filters
-      filteredPositions = allPositions.filter(pos => {
-        const matchesProtocol = protocolFilter === 'all' || pos.protocol === protocolFilter;
-        const matchesStatus = statusFilter === 'all' ||
-          (statusFilter === 'in-range' && pos.inRange) ||
-          (statusFilter === 'out-of-range' && !pos.inRange);
-        return matchesProtocol && matchesStatus;
-      });
-
-      updateStats();
-      renderPositions();
-    }
-
-    // Update statistics cards
-    function updateStats() {
-      const totalPositions = filteredPositions.length;
-      const inRangeCount = filteredPositions.filter(p => p.inRange).length;
-      const outOfRangeCount = filteredPositions.filter(p => !p.inRange).length;
-      const totalValue = filteredPositions.reduce((sum, p) => sum + (p.balance || 0), 0);
-      const totalPendingYield = filteredPositions.reduce((sum, p) => sum + (p.pendingYield || 0), 0);
-      const avgAPY = filteredPositions.length > 0
-        ? filteredPositions.reduce((sum, p) => sum + (p.apy || 0), 0) / filteredPositions.length
-        : 0;
-
-      const statsHTML = `
-        <div class="stat-card">
-          <div class="stat-label">Total Positions</div>
-          <div class="stat-value">${totalPositions}</div>
-          <div class="stat-subtext">${inRangeCount} in range, ${outOfRangeCount} out of range</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Value</div>
-          <div class="stat-value">$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="stat-subtext">Across all positions</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Pending Yield</div>
-          <div class="stat-value">$${totalPendingYield.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div class="stat-subtext">Ready to claim</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Average APY</div>
-          <div class="stat-value">${avgAPY.toFixed(1)}%</div>
-          <div class="stat-subtext">Across all positions</div>
-        </div>
-      `;
-
-      document.getElementById('stats').innerHTML = statsHTML;
-    }
-
-    // Render position cards
-    function renderPositions() {
-      const grid = document.getElementById('positionsGrid');
-      const emptyState = document.getElementById('emptyState');
-
-      if (filteredPositions.length === 0) {
-        grid.style.display = 'none';
-        emptyState.style.display = 'block';
-        return;
-      }
-
-      grid.style.display = 'grid';
-      emptyState.style.display = 'none';
-
-      const positionsHTML = filteredPositions.map(pos => {
-        const inRange = pos.inRange;
-        const rangeStatusClass = inRange ? 'in-range' : 'out-of-range';
-        const statusClass = inRange ? 'status-in-range' : 'status-out-of-range';
-        const statusText = inRange ? '✓ In Range' : '⚠ Out of Range';
-
-        // Calculate position of current price marker on the range bar
-        let markerPosition = 50; // default to middle
-        if (pos.rangeMin !== undefined && pos.rangeMax !== undefined && pos.currentPrice !== undefined) {
-          const range = pos.rangeMax - pos.rangeMin;
-          if (range > 0) {
-            const pricePosition = (pos.currentPrice - pos.rangeMin) / range;
-            markerPosition = Math.max(0, Math.min(100, pricePosition * 100));
-          }
-        }
-
-        return `
-          <div class="position-card ${rangeStatusClass}">
-            <div class="position-header">
-              <div>
-                <div class="position-pair">${pos.pair || 'Unknown Pair'}</div>
-                <span class="position-status ${statusClass}">${statusText}</span>
-              </div>
-              <span class="position-protocol">${pos.protocol}</span>
-            </div>
-
-            <div class="position-metrics">
-              <div class="metric">
-                <span class="metric-label">Balance</span>
-                <span class="metric-value">$${(pos.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-              <div class="metric">
-                <span class="metric-label">APY</span>
-                <span class="metric-value">${(pos.apy || 0).toFixed(2)}%</span>
-              </div>
-              <div class="metric">
-                <span class="metric-label">Pending Yield</span>
-                <span class="metric-value">${pos.pendingYield !== undefined ? '$' + (pos.pendingYield || 0).toFixed(2) : 'N/A'}</span>
-              </div>
-              <div class="metric">
-                <span class="metric-label">Current Price</span>
-                <span class="metric-value">${pos.currentPrice !== undefined ? pos.currentPrice.toFixed(4) : 'N/A'}</span>
-              </div>
-            </div>
-
-            ${pos.rangeMin !== undefined && pos.rangeMax !== undefined ? `
-            <div class="range-bar">
-              <div class="range-bar-label">Price Range</div>
-              <div class="range-bar-container">
-                <div class="range-marker" style="left: ${markerPosition}%"></div>
-              </div>
-              <div class="range-bounds">
-                <span>Min: ${pos.rangeMin.toFixed(4)}</span>
-                <span>Max: ${pos.rangeMax.toFixed(4)}</span>
-              </div>
-            </div>
-            ` : ''}
-
-            <div class="timestamp">Captured: ${new Date(pos.captureTimestamp).toLocaleString()}</div>
-          </div>
-        `;
-      }).join('');
-
-      grid.innerHTML = positionsHTML;
-    }
-
-    // Export data as JSON
-    function exportData() {
-      const dataStr = JSON.stringify(filteredPositions, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `clm-positions-${timestamp}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }
-
-    // Event listeners
-    document.getElementById('protocolFilter').addEventListener('change', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    document.getElementById('refreshBtn').addEventListener('click', loadCaptures);
-    document.getElementById('exportBtn').addEventListener('click', exportData);
-
-    // Initial load
-    loadCaptures();
-  </script>
+  <!-- Load Supabase client library -->
+  <script src="supabase.js"></script>
+  <!-- Load configuration -->
+  <script src="config.js"></script>
+  <!-- Load Supabase client wrapper -->
+  <script src="supabase-client.js"></script>
+  <!-- Load dashboard logic -->
+  <script src="dashboard.js"></script>
 </body>
 </html>

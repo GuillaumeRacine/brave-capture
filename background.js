@@ -384,12 +384,15 @@ function setupCaptureAlarm(url, intervalMinutes) {
   });
 }
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name.startsWith('capture-')) {
-    const url = alarm.name.replace('capture-', '');
-    performScheduledCapture(url);
-  }
-});
+// Only add alarm listener if alarms API is available
+if (chrome.alarms && chrome.alarms.onAlarm) {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name.startsWith('capture-')) {
+      const url = alarm.name.replace('capture-', '');
+      performScheduledCapture(url);
+    }
+  });
+}
 
 async function performScheduledCapture(url) {
   try {

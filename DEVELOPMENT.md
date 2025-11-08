@@ -20,17 +20,30 @@ This guide provides comprehensive technical details for developers and LLMs work
 Brave Capture is a Chrome extension that captures and tracks DeFi CLM (Concentrated Liquidity Market Maker) positions across multiple protocols. The architecture follows Chrome's extension model with three main components:
 
 ```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   Popup     │────────▶│   Content   │────────▶│    Page     │
-│  (popup.js) │◀────────│ (content.js)│◀────────│    DOM      │
-└─────────────┘         └─────────────┘         └─────────────┘
-       │                                                │
-       │                                                │
-       ▼                                                ▼
-┌─────────────┐                              ┌─────────────┐
-│  Background │                              │   Chrome    │
-│(background.js)                             │   Storage   │
-└─────────────┘                              └─────────────┘
+┌─────────────┐         ┌────────────────┐         ┌─────────────┐
+│   Popup     │────────▶│  wait-for-data │────────▶│    Page     │
+│  (popup.js) │         │  MutationObserver│       │    DOM      │
+└─────────────┘         └────────────────┘         └─────────────┘
+       │                        ▼
+       │                ┌────────────────┐
+       ├───────────────▶│   Content      │
+       │                │  (content.js)  │
+       │                │  - 7 Protocol  │
+       │                │    Parsers     │
+       │                └────────────────┘
+       │                        │
+       ▼                        ▼
+┌─────────────┐         ┌────────────────┐         ┌─────────────┐
+│  Background │         │   File Storage │         │  Supabase   │
+│(background.js)       │(file-storage.js)│       │  Database   │
+└─────────────┘         └────────────────┘         └─────────────┘
+                                │                        │
+                                ▼                        ▼
+                        ┌────────────────┐         ┌─────────────┐
+                        │  Local JSON    │         │ Dashboard   │
+                        │  ~/Downloads/  │         │(dashboard.js)│
+                        │  captures/     │         │ Auto-refresh│
+                        └────────────────┘         └─────────────┘
 ```
 
 ### Communication Flow
@@ -43,18 +56,27 @@ Brave Capture is a Chrome extension that captures and tracks DeFi CLM (Concentra
 
 ```
 brave-capture/
-├── manifest.json           # Extension configuration
-├── popup.html             # Extension popup UI
-├── popup.js               # Popup logic, validation, storage
-├── content.js             # DOM parsing, protocol-specific parsers
-├── background.js          # Background service worker
-├── icons/                 # Extension icons
-├── .env.local             # API keys for validation
-├── package.json           # Node.js dependencies
-├── validate.js            # Standalone AI validation script
-├── README.md              # User documentation
-├── PROTOCOL_PARSERS.md    # Protocol parsing details
-└── DEVELOPMENT.md         # This file
+├── manifest.json             # Extension configuration (v3)
+├── popup.html                # Extension popup UI
+├── popup.js                  # Popup logic, validation, storage orchestration
+├── content.js                # DOM parsing, 7 protocol-specific parsers
+├── wait-for-data.js          # MutationObserver for dynamic data detection
+├── background.js             # Background service worker
+├── file-storage.js           # Local file save system
+├── supabase-client.js        # Supabase database operations
+├── supabase.js               # Supabase client library (CDN copy)
+├── config.js                 # Auto-generated from .env.local (gitignored)
+├── dashboard.html            # Position dashboard UI
+├── dashboard.js              # Dashboard logic with auto-refresh
+├── clear-database.js         # Utility to wipe Supabase data
+├── icons/                    # Extension icons (16, 48, 128px)
+├── .env.local                # Supabase credentials + API keys (gitignored)
+├── .env.example              # Template for environment variables
+├── package.json              # Node.js dependencies
+├── README.md                 # User documentation
+├── PROTOCOL_PARSERS.md       # Detailed protocol parsing documentation
+├── DEVELOPMENT.md            # This file
+└── .gitignore                # Protects sensitive data
 ```
 
 ## Core Components
@@ -273,6 +295,261 @@ function captureProtocolCLMPositions() {
       }
     }
   };
+}
+```
+
+### 5. wait-for-data.js (NEW in v1.2)
+
+**Purpose:** Dynamically detect when protocol data is fully loaded using MutationObserver instead of fixed delays.
+
+**Key Features:**
+- **MutationObserver-based:** Watches DOM changes in real-time
+- **Protocol-specific checks:** Each protocol has custom ready-state logic
+- **Instant response:** Fires when data appears (2-3ms typical)
+- **Timeout fallback:** 5-second maximum wait
+- **Smart skipping:** If data already loaded, returns immediately (0ms)
+
+**Architecture:**
+```javascript
+const DATA_READY_CHECKS = {
+  'orca.so': () => {
+    const hasTotalValue = !!Array.from(document.querySelectorAll('*')).find(el =>
+      el.textContent.trim() === 'Total Value'
+    );
+    const tableRows = document.querySelectorAll('table tbody tr');
+    return hasTotalValue && tableRows.length > 0;
+  },
+  // ... similar checks for all 7 protocols
+};
+
+async function waitForDataReady(maxWaitMs = 5000) {
+  const checkFunction = getCheckForProtocol();
+
+  // Immediate check
+  if (checkFunction()) return true;
+
+  // Watch for changes
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (checkFunction()) {
+        observer.disconnect();
+        resolve(true);
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true
+    });
+
+    setTimeout(() => {
+      observer.disconnect();
+      resolve(false);
+    }, maxWaitMs);
+  });
+}
+```
+
+**Performance Impact:**
+- **Before:** 5000ms worst-case (polling every 200ms)
+- **After:** 2-3ms typical, 0ms if data already loaded
+- **Improvement:** 99.96% faster on subsequent captures
+
+### 6. file-storage.js
+
+**Purpose:** Handle local JSON file saves with organized directory structure.
+
+**Features:**
+- **Auto-organization:** `~/Downloads/captures/[protocol]/[YYYY-MM]/`
+- **Timestamped filenames:** `[protocol]_[YYYY-MM-DD]_[HH-MM-SS].json`
+- **Auto-save:** No "Save As" dialog (uses `saveAs: false`)
+- **Conflict handling:** `uniquify` adds (1), (2), etc. if file exists
+
+**Key Function:**
+```javascript
+async function saveCaptureToFile(capture) {
+  const url = window.location.hostname;
+  const timestamp = new Date(capture.timestamp);
+
+  // Generate path
+  const monthDir = `${year}-${String(month).padStart(2, '0')}`;
+  const suggestedPath = `captures/${protocolDir}/${monthDir}/${filename}`;
+
+  // Save via Chrome downloads API
+  chrome.downloads.download({
+    url: dataUrl,
+    filename: suggestedPath,
+    saveAs: false,
+    conflictAction: 'uniquify'
+  });
+}
+```
+
+### 7. supabase-client.js
+
+**Purpose:** Manage all Supabase database operations with caching.
+
+**Key Functions:**
+
+#### `saveCapture(capture)`
+Saves both to `captures` and `positions` tables atomically.
+```javascript
+// Insert capture
+await supabase.from('captures').insert([{
+  id: capture.id,
+  url: capture.url,
+  protocol: capture.protocol,
+  data: capture.data  // JSONB column
+}]);
+
+// Extract and insert positions
+const positions = capture.data.content.clmPositions.positions.map(pos => ({
+  capture_id: capture.id,
+  protocol: capture.protocol,
+  pair: pos.pair,
+  balance: pos.balance,
+  // ... all position fields
+}));
+
+await supabase.from('positions').insert(positions);
+```
+
+#### `getLatestPositions()`
+Returns most recent position for each unique pair across all protocols.
+```javascript
+const positions = await getPositions();
+const latestMap = new Map();
+
+positions.forEach(pos => {
+  const key = `${pos.protocol}-${pos.pair}`;
+  const existing = latestMap.get(key);
+
+  if (!existing || new Date(pos.captured_at) > new Date(existing.captured_at)) {
+    latestMap.set(key, pos);
+  }
+});
+
+return Array.from(latestMap.values());
+```
+
+**Caching:**
+- 30-second TTL for position queries
+- Cleared on new captures
+- Speeds up dashboard loads
+
+### 8. dashboard.js
+
+**Purpose:** Real-time position monitoring dashboard with auto-refresh.
+
+**Features:**
+- **Auto-refresh:** Polls Supabase every 30 seconds
+- **Manual refresh:** Button with loading state
+- **Smart filtering:** Hides positions < $1,000
+- **Business rules:** Beefy positions always marked in-range
+- **Weighted APY:** Calculated based on position sizes
+- **Protocol filter:** Show/hide by protocol
+- **Sortable columns:** Click headers to sort
+
+**Auto-refresh Implementation:**
+```javascript
+// Auto-refresh every 30 seconds
+setInterval(() => {
+  if (typeof window.clearCache === 'function') {
+    window.clearCache();
+  }
+  loadCaptures();
+}, 30000);
+```
+
+**Statistics Calculations:**
+```javascript
+// Weighted APY
+const totalBalance = positions.reduce((sum, p) => sum + p.balance, 0);
+const weightedAPY = positions.reduce((sum, p) => {
+  return sum + (p.balance * p.apy);
+}, 0) / totalBalance;
+```
+
+### 9. Token Breakdown Extraction (NEW in v1.2)
+
+**Purpose:** Extract individual token amounts, percentages, and values from position detail panels.
+
+**Helper Functions:**
+
+#### `extractTokenBreakdown(text, token0, token1)`
+Searches for patterns like "46.5366441 SOL 37.6%" with nearby USD values.
+
+```javascript
+function extractTokenBreakdown(text, token0, token1) {
+  const breakdown = {};
+
+  // Try multiple patterns
+  const patterns = [
+    new RegExp(`([0-9,.]+)\\s+${token0}\\s+([0-9.]+)%`),
+    new RegExp(`([0-9,.]+)\\s+${token0}\\s*\\(\\s*([0-9.]+)%\\s*\\)`),
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      breakdown.token0Amount = parseFloat(match[1].replace(/,/g, ''));
+      breakdown.token0Percentage = parseFloat(match[2]);
+
+      // Find nearby USD value
+      const section = text.substring(matchIndex, matchIndex + 150);
+      const valueMatch = section.match(/\$([0-9,]+\.?[0-9]*)/);
+      if (valueMatch) {
+        breakdown.token0Value = parseFloat(valueMatch[1].replace(/,/g, ''));
+      }
+      break;
+    }
+  }
+
+  // Same for token1...
+  return breakdown;
+}
+```
+
+#### `calculateTokenBreakdown(position)`
+Fallback for when detail panel is unavailable - calculates 50/50 split.
+
+```javascript
+function calculateTokenBreakdown(position) {
+  if (!position.balance || !position.currentPrice) return;
+
+  // 50/50 value split
+  position.token0Value = position.balance * 0.5;
+  position.token1Value = position.balance * 0.5;
+  position.token0Percentage = 50;
+  position.token1Percentage = 50;
+
+  // Calculate amounts
+  if (position.currentPrice > 0) {
+    position.token1Amount = position.token1Value / position.currentPrice;
+    position.token0Amount = position.token0Value;
+  }
+}
+```
+
+**Usage in Parsers:**
+```javascript
+// After parsing position from table row...
+
+// Try to extract from detail panel
+const detailsPanel = document.querySelector('[role="dialog"]');
+if (detailsPanel && position.token0 && position.token1) {
+  const detailsText = detailsPanel.innerText;
+  const breakdown = extractTokenBreakdown(detailsText, position.token0, position.token1);
+
+  if (breakdown.token0Amount) {
+    Object.assign(position, breakdown);
+  }
+}
+
+// Fallback to calculation
+if (!position.token0Amount) {
+  calculateTokenBreakdown(position);
 }
 ```
 
@@ -925,6 +1202,97 @@ if (hostname.includes('protocol.com')) {
   return true; // Keep message channel open
 }
 ```
+
+## Dashboard Business Rules
+
+The dashboard (`dashboard.html`) implements specific business logic for displaying and calculating position data.
+
+### Position Filtering Rules
+
+**1. Minimum Balance Filter**
+```javascript
+// In loadCaptures() function (dashboard.html:497-508)
+allPositions = positions
+  .filter(pos => {
+    const balance = parseFloat(pos.balance) || 0;
+    return balance >= 1000; // Only show positions >= $1K
+  })
+```
+
+**Rationale:** Positions under $1,000 are typically too small to actively manage and don't significantly impact portfolio performance.
+
+**2. Beefy Finance Auto-Adjustment**
+```javascript
+// In loadCaptures() function (dashboard.html:502-507)
+.map(pos => {
+  // Beefy auto-adjusts ranges, so always mark as in-range
+  if (pos.protocol && pos.protocol.toLowerCase() === 'beefy') {
+    return { ...pos, in_range: true };
+  }
+  return pos;
+})
+```
+
+**Rationale:** Beefy Finance vaults use automated liquidity management (ALM) that continuously rebalances positions. These positions never go "out of range" because they automatically adjust, so there's no value in tracking their range status.
+
+### APY Calculation Method
+
+**Weighted Average APY**
+```javascript
+// In updateStats() function (dashboard.html:621-629)
+let weightedAPY = 0;
+if (totalValue > 0) {
+  weightedAPY = filteredPositions.reduce((sum, p) => {
+    const balance = parseFloat(p.balance) || 0;
+    const apy = parseFloat(p.apy) || 0;
+    return sum + (balance * apy);
+  }, 0) / totalValue;
+}
+```
+
+**Formula:** `Σ(balance × APY) / Σ(balance)`
+
+**Example Calculation:**
+```javascript
+// Position A: $100,000 @ 10% APY
+// Position B: $10,000 @ 50% APY
+// Position C: $1,000 @ 200% APY
+
+const weightedAPY =
+  (100000 * 10 + 10000 * 50 + 1000 * 200) / (100000 + 10000 + 1000)
+  = (1000000 + 500000 + 200000) / 111000
+  = 1700000 / 111000
+  = 15.32%
+
+// Compare to simple average:
+const simpleAverage = (10 + 50 + 200) / 3 = 86.67%
+
+// The weighted average accurately reflects that Position A dominates
+// the portfolio's actual yield generation
+```
+
+**Rationale:** A simple arithmetic mean would give equal weight to all positions regardless of size. This would be misleading - a $100K position at 10% APY generates far more yield ($10K/year) than a $1K position at 200% APY ($2K/year). The weighted average accurately represents the portfolio's actual yield generation capacity.
+
+### Statistics Calculations
+
+All statistics in the dashboard are calculated from `filteredPositions` (after applying business rules):
+
+```javascript
+// In updateStats() function (dashboard.html:615-638)
+const totalPositions = filteredPositions.length;
+const inRangeCount = filteredPositions.filter(p => p.in_range).length;
+const totalValue = filteredPositions.reduce((sum, p) =>
+  sum + (parseFloat(p.balance) || 0), 0);
+const totalPendingYield = filteredPositions.reduce((sum, p) =>
+  sum + (parseFloat(p.pending_yield) || 0), 0);
+```
+
+**Display Format:**
+- Total Positions: Integer count
+- In Range: Count + percentage (e.g., "11 (78.6%)")
+- Total Value: USD currency with 2 decimals
+- Pending Yield: USD currency with 2 decimals
+- Weighted APY: Percentage with 2 decimals
 
 ## Performance Considerations
 

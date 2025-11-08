@@ -3,6 +3,7 @@ let currentTab = null;
 document.addEventListener('DOMContentLoaded', async () => {
   const captureBtn = document.getElementById('captureBtn');
   const exportBtn = document.getElementById('exportBtn');
+  const dashboardBtn = document.getElementById('dashboardBtn');
   const currentUrlElement = document.getElementById('currentUrl');
   const messageElement = document.getElementById('message');
 
@@ -19,32 +20,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   exportBtn.addEventListener('click', async () => {
     try {
-      chrome.storage.local.get(['captures'], (result) => {
-        const captures = result.captures || [];
+      // Get all captures from Supabase
+      const captures = await window.getCaptures();
 
-        if (captures.length === 0) {
-          showMessage('No captures to export', 'error');
-          return;
-        }
+      if (captures.length === 0) {
+        showMessage('No captures to export', 'error');
+        return;
+      }
 
-        const dataStr = JSON.stringify(captures, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const dataStr = JSON.stringify(captures, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-        chrome.downloads.download({
-          url: url,
-          filename: `brave-capture-${timestamp}.json`,
-          saveAs: true
-        }, () => {
-          showMessage('Data exported successfully!', 'success');
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-        });
+      chrome.downloads.download({
+        url: url,
+        filename: `brave-capture-${timestamp}.json`,
+        saveAs: true
+      }, () => {
+        showMessage('Data exported successfully!', 'success');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       });
     } catch (error) {
       console.error('Export error:', error);
       showMessage('Failed to export data', 'error');
     }
+  });
+
+  dashboardBtn.addEventListener('click', () => {
+    // Open dashboard in a new tab
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
   });
 
   captureBtn.addEventListener('click', async () => {
@@ -53,15 +58,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    // Immediate visual feedback
     captureBtn.disabled = true;
-    captureBtn.innerHTML = 'Capturing<span class="spinner"></span>';
-    messageElement.innerHTML = '';
+    captureBtn.innerHTML = '⏳ Capturing<span class="spinner"></span>';
+    captureBtn.style.opacity = '0.7';
+    showMessage('⏳ Waiting for page data...', 'info');
+
+    let response = null; // Initialize response
 
     try {
+      console.log('📊 Starting capture for URL:', currentTab.url);
+      console.log('Tab ID:', currentTab.id);
+
       // Send message to content script to capture data
-      const response = await chrome.tabs.sendMessage(currentTab.id, { action: 'captureData' });
+      response = await chrome.tabs.sendMessage(currentTab.id, { action: 'captureData' });
+
+      console.log('📦 Response from content script:', response);
 
       if (response && response.success) {
+        showMessage('✅ Data captured! Saving...', 'info');
+
         const capture = {
           url: currentTab.url,
           title: currentTab.title,
@@ -71,40 +87,57 @@ document.addEventListener('DOMContentLoaded', async () => {
           id: generateId()
         };
 
-        await saveCapture(capture);
+        // Save to Supabase (using function from supabase-client.js)
+        showMessage('💾 Saving to database...', 'info');
+        console.log('🔍 Attempting to save to Supabase...');
+        const saveResult = await window.saveCapture(capture);
+        console.log('🔍 Supabase save result:', saveResult);
 
-        // Run basic validation on the captured data
-        const validation = await validateCapture(capture);
-
-        // Compare with previous capture to detect changes
-        const comparison = await compareWithPrevious(capture);
-
-        // Display combined validation and comparison results
-        const allIssues = [...validation.issues];
-        const allWarnings = [...validation.warnings];
-
-        if (comparison) {
-          if (comparison.criticalChanges.length > 0) {
-            allWarnings.push(...comparison.criticalChanges);
-          }
-
-          console.log('📊 Historical Comparison:', {
-            positionsAdded: comparison.positionsAdded,
-            positionsRemoved: comparison.positionsRemoved,
-            significantChanges: comparison.significantChanges,
-            criticalChanges: comparison.criticalChanges
-          });
-        }
-
-        if (allIssues.length > 0) {
-          showMessage(`Captured with ${allIssues.length} issue(s) - check console`, 'warning');
-          console.warn('Capture validation issues:', allIssues);
-        } else if (allWarnings.length > 0) {
-          showMessage(`Captured with ${allWarnings.length} warning(s)`, 'success');
-          console.warn('Capture warnings:', allWarnings);
+        if (!saveResult.success) {
+          console.error('❌ Supabase save failed:', saveResult.error);
+          // Don't throw - allow file save to continue even if Supabase fails
+          showMessage('⚠️ Database save failed, but file saved locally', 'warning');
         } else {
-          showMessage('Page data captured successfully!', 'success');
+          console.log('✅ Supabase save successful');
         }
+
+        // ALSO save to local file with timestamped name
+        const fileResult = await window.FileStorage.saveCaptureToFile(capture);
+        let fileSaveMessage = '';
+        if (fileResult.success) {
+          console.log('✅ Saved to file:', fileResult.path);
+          const fileName = fileResult.path.split('/').pop();
+          fileSaveMessage = ` File: ${fileName}`;
+        } else {
+          console.warn('⚠️ Could not save to file:', fileResult.error);
+        }
+
+        // Show success immediately - don't wait for validation/comparison
+        showMessage(`✅ Captured! ${fileSaveMessage}`, 'success');
+
+        // Run validation and comparison in background (don't block UI)
+        Promise.all([
+          validateCapture(capture),
+          compareWithPrevious(capture)
+        ]).then(([validation, comparison]) => {
+          // Log results in console for debugging
+          if (validation.issues.length > 0) {
+            console.warn('⚠️ Validation issues:', validation.issues);
+          }
+          if (validation.warnings.length > 0) {
+            console.log('⚠️ Validation warnings:', validation.warnings);
+          }
+          if (comparison) {
+            console.log('📊 Changes detected:', {
+              added: comparison.positionsAdded.length,
+              removed: comparison.positionsRemoved.length,
+              significant: comparison.significantChanges.length,
+              critical: comparison.criticalChanges.length
+            });
+          }
+        }).catch(err => {
+          console.warn('Background validation/comparison failed:', err);
+        });
 
         loadRecentCaptures();
 
@@ -114,14 +147,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
       } else {
-        throw new Error(response?.error || 'Failed to capture page data');
+        console.error('❌ No success response from content script');
+        console.error('Response received:', response);
+        throw new Error(response?.error || 'Failed to capture page data - no valid response');
       }
     } catch (error) {
-      console.error('Capture error:', error);
-      showMessage('Failed to capture page data', 'error');
+      console.error('❌ CAPTURE ERROR:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        url: currentTab?.url,
+        tabId: currentTab?.id
+      });
+
+      // Better error messages for users
+      let userMessage = 'Failed to capture page data';
+
+      if (error.message && error.message.includes('Could not establish connection')) {
+        userMessage = '⚠️ Content script not loaded. Please reload the page and extension, then try again.';
+      } else if (error.message && error.message.includes('protocol')) {
+        userMessage = '⚠️ Unsupported protocol or page. Try the positions/liquidity page.';
+      } else if (response?.error) {
+        userMessage = `❌ ${response.error}`;
+      }
+
+      showMessage(userMessage, 'error');
     } finally {
       captureBtn.disabled = false;
       captureBtn.textContent = 'Capture Page Data';
+      captureBtn.style.opacity = '1';
     }
   });
 });
@@ -235,123 +289,126 @@ async function compareWithPrevious(capture) {
     return null;
   }
 
-  return new Promise((resolve) => {
-    chrome.storage.local.get(['captures'], (result) => {
-      const captures = result.captures || [];
-
-      // Find the most recent previous capture from the same protocol
-      const previousCapture = captures.find((c, index) =>
-        index > 0 && // Skip the current capture (index 0)
-        c.protocol === capture.protocol &&
-        c.data?.content?.clmPositions
-      );
-
-      if (!previousCapture) {
-        resolve(null);
-        return;
-      }
-
-      const current = capture.data.content.clmPositions;
-      const previous = previousCapture.data.content.clmPositions;
-
-      const criticalChanges = [];
-      const significantChanges = [];
-      const positionsAdded = [];
-      const positionsRemoved = [];
-
-      // Create maps for easier comparison
-      const currentPairs = new Map();
-      current.positions.forEach(pos => {
-        if (pos.pair) currentPairs.set(pos.pair, pos);
-      });
-
-      const previousPairs = new Map();
-      previous.positions.forEach(pos => {
-        if (pos.pair) previousPairs.set(pos.pair, pos);
-      });
-
-      // Find added positions
-      currentPairs.forEach((pos, pair) => {
-        if (!previousPairs.has(pair)) {
-          positionsAdded.push(pair);
-        }
-      });
-
-      // Find removed positions
-      previousPairs.forEach((pos, pair) => {
-        if (!currentPairs.has(pair)) {
-          positionsRemoved.push(pair);
-        }
-      });
-
-      // Compare existing positions
-      currentPairs.forEach((currentPos, pair) => {
-        const previousPos = previousPairs.get(pair);
-        if (!previousPos) return;
-
-        // Check if position went out of range
-        if (previousPos.inRange && !currentPos.inRange) {
-          criticalChanges.push(`${pair}: Position went OUT OF RANGE`);
-        }
-
-        // Check if position came back in range
-        if (!previousPos.inRange && currentPos.inRange) {
-          significantChanges.push(`${pair}: Position came back IN RANGE`);
-        }
-
-        // Check for large balance changes (>50%)
-        if (previousPos.balance && currentPos.balance) {
-          const balanceChange = Math.abs(currentPos.balance - previousPos.balance) / previousPos.balance;
-          if (balanceChange > 0.5) {
-            const direction = currentPos.balance > previousPos.balance ? 'increased' : 'decreased';
-            const percentChange = (balanceChange * 100).toFixed(1);
-            criticalChanges.push(`${pair}: Balance ${direction} by ${percentChange}%`);
-          }
-        }
-
-        // Check for significant APY changes (>20% absolute change)
-        if (previousPos.apy && currentPos.apy) {
-          const apyChange = Math.abs(currentPos.apy - previousPos.apy);
-          if (apyChange > 20) {
-            const direction = currentPos.apy > previousPos.apy ? 'increased' : 'decreased';
-            significantChanges.push(`${pair}: APY ${direction} from ${previousPos.apy.toFixed(1)}% to ${currentPos.apy.toFixed(1)}%`);
-          }
-        }
-
-        // Check for price moving close to range boundaries
-        if (currentPos.inRange && currentPos.currentPrice && currentPos.rangeMin && currentPos.rangeMax) {
-          const rangeSize = currentPos.rangeMax - currentPos.rangeMin;
-          const distanceToMin = Math.abs(currentPos.currentPrice - currentPos.rangeMin);
-          const distanceToMax = Math.abs(currentPos.currentPrice - currentPos.rangeMax);
-
-          if (distanceToMin < rangeSize * 0.1 || distanceToMax < rangeSize * 0.1) {
-            criticalChanges.push(`${pair}: Price approaching range boundary`);
-          }
-        }
-      });
-
-      // Check for total portfolio value changes
-      if (previous.summary?.totalValue && current.summary?.totalValue) {
-        const prevValue = parseFloat(previous.summary.totalValue);
-        const currValue = parseFloat(current.summary.totalValue);
-        const valueChange = Math.abs(currValue - prevValue) / prevValue;
-
-        if (valueChange > 0.2) {
-          const direction = currValue > prevValue ? 'increased' : 'decreased';
-          const percentChange = (valueChange * 100).toFixed(1);
-          significantChanges.push(`Total portfolio value ${direction} by ${percentChange}%`);
-        }
-      }
-
-      resolve({
-        previousTimestamp: previousCapture.timestamp,
-        criticalChanges,
-        significantChanges,
-        positionsAdded,
-        positionsRemoved
-      });
+  try {
+    // Get previous captures from Supabase
+    const previousCaptures = await window.getCaptures({
+      protocol: capture.protocol,
+      limit: 10
     });
-  });
+
+    // Find the most recent previous capture (excluding current one)
+    const previousCapture = previousCaptures.find(c =>
+      c.id !== capture.id &&
+      c.data?.content?.clmPositions
+    );
+
+    if (!previousCapture) {
+      return null;
+    }
+
+    const current = capture.data.content.clmPositions;
+    const previous = previousCapture.data.content.clmPositions;
+
+    const criticalChanges = [];
+    const significantChanges = [];
+    const positionsAdded = [];
+    const positionsRemoved = [];
+
+    // Create maps for easier comparison
+    const currentPairs = new Map();
+    current.positions.forEach(pos => {
+      if (pos.pair) currentPairs.set(pos.pair, pos);
+    });
+
+    const previousPairs = new Map();
+    previous.positions.forEach(pos => {
+      if (pos.pair) previousPairs.set(pos.pair, pos);
+    });
+
+    // Find added positions
+    currentPairs.forEach((pos, pair) => {
+      if (!previousPairs.has(pair)) {
+        positionsAdded.push(pair);
+      }
+    });
+
+    // Find removed positions
+    previousPairs.forEach((pos, pair) => {
+      if (!currentPairs.has(pair)) {
+        positionsRemoved.push(pair);
+      }
+    });
+
+    // Compare existing positions
+    currentPairs.forEach((currentPos, pair) => {
+      const previousPos = previousPairs.get(pair);
+      if (!previousPos) return;
+
+      // Check if position went out of range
+      if (previousPos.inRange && !currentPos.inRange) {
+        criticalChanges.push(`${pair}: Position went OUT OF RANGE`);
+      }
+
+      // Check if position came back in range
+      if (!previousPos.inRange && currentPos.inRange) {
+        significantChanges.push(`${pair}: Position came back IN RANGE`);
+      }
+
+      // Check for large balance changes (>50%)
+      if (previousPos.balance && currentPos.balance) {
+        const balanceChange = Math.abs(currentPos.balance - previousPos.balance) / previousPos.balance;
+        if (balanceChange > 0.5) {
+          const direction = currentPos.balance > previousPos.balance ? 'increased' : 'decreased';
+          const percentChange = (balanceChange * 100).toFixed(1);
+          criticalChanges.push(`${pair}: Balance ${direction} by ${percentChange}%`);
+        }
+      }
+
+      // Check for significant APY changes (>20% absolute change)
+      if (previousPos.apy && currentPos.apy) {
+        const apyChange = Math.abs(currentPos.apy - previousPos.apy);
+        if (apyChange > 20) {
+          const direction = currentPos.apy > previousPos.apy ? 'increased' : 'decreased';
+          significantChanges.push(`${pair}: APY ${direction} from ${previousPos.apy.toFixed(1)}% to ${currentPos.apy.toFixed(1)}%`);
+        }
+      }
+
+      // Check for price moving close to range boundaries
+      if (currentPos.inRange && currentPos.currentPrice && currentPos.rangeMin && currentPos.rangeMax) {
+        const rangeSize = currentPos.rangeMax - currentPos.rangeMin;
+        const distanceToMin = Math.abs(currentPos.currentPrice - currentPos.rangeMin);
+        const distanceToMax = Math.abs(currentPos.currentPrice - currentPos.rangeMax);
+
+        if (distanceToMin < rangeSize * 0.1 || distanceToMax < rangeSize * 0.1) {
+          criticalChanges.push(`${pair}: Price approaching range boundary`);
+        }
+      }
+    });
+
+    // Check for total portfolio value changes
+    if (previous.summary?.totalValue && current.summary?.totalValue) {
+      const prevValue = parseFloat(previous.summary.totalValue);
+      const currValue = parseFloat(current.summary.totalValue);
+      const valueChange = Math.abs(currValue - prevValue) / prevValue;
+
+      if (valueChange > 0.2) {
+        const direction = currValue > prevValue ? 'increased' : 'decreased';
+        const percentChange = (valueChange * 100).toFixed(1);
+        significantChanges.push(`Total portfolio value ${direction} by ${percentChange}%`);
+      }
+    }
+
+    return {
+      previousTimestamp: previousCapture.timestamp,
+      criticalChanges,
+      significantChanges,
+      positionsAdded,
+      positionsRemoved
+    };
+  } catch (error) {
+    console.error('Error comparing with previous:', error);
+    return null;
+  }
 }
 
 async function validateCapture(capture) {
@@ -421,43 +478,25 @@ async function validateCapture(capture) {
   };
 }
 
-async function saveCapture(capture) {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get(['captures'], (result) => {
-      const captures = result.captures || [];
-      captures.unshift(capture);
-      
-      if (captures.length > 1000) {
-        captures.splice(1000);
-      }
-      
-      chrome.storage.local.set({ captures }, () => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve();
-        }
-      });
-    });
-  });
-}
+// saveCapture function is now provided by supabase-client.js
+// No longer using Chrome local storage
 
 async function loadRecentCaptures() {
-  chrome.storage.local.get(['captures'], (result) => {
-    const captures = result.captures || [];
-    const recentCaptures = captures.slice(0, 5);
-    
+  try {
+    // Load from Supabase instead of local storage
+    const recentCaptures = await window.getRecentCaptures(5);
+
     if (recentCaptures.length > 0) {
       const capturesContainer = document.getElementById('recentCaptures');
       const capturesList = document.getElementById('capturesList');
-      
+
       capturesContainer.style.display = 'block';
       capturesList.innerHTML = recentCaptures.map(capture => {
         const date = new Date(capture.timestamp);
         const timeStr = date.toLocaleTimeString();
         const dateStr = date.toLocaleDateString();
         const domain = new URL(capture.url).hostname;
-        
+
         return `
           <div class="capture-item">
             <strong>${domain}</strong><br>
@@ -466,7 +505,9 @@ async function loadRecentCaptures() {
         `;
       }).join('');
     }
-  });
+  } catch (error) {
+    console.error('Error loading recent captures:', error);
+  }
 }
 
 function showMessage(text, type) {

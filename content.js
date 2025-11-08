@@ -1,49 +1,54 @@
+console.log('🎯 Brave Capture content script loaded on:', window.location.href);
+
 let isCapturing = false;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('📨 Message received in content script:', request);
+
   if (request.action === 'captureData') {
+    console.log('🚀 Starting capture process...');
+
     if (isCapturing) {
+      console.warn('⚠️ Capture already in progress');
       sendResponse({ error: 'Capture already in progress' });
       return true;
     }
 
     isCapturing = true;
 
-    // Check if we need to wait for content to load (Hyperion details page, Beefy, or PancakeSwap)
-    const needsDelay = (window.location.hostname.includes('hyperion') &&
-                        window.location.pathname.includes('/position/')) ||
-                       (window.location.hostname.includes('beefy')) ||
-                       (window.location.hostname.includes('pancakeswap'));
-
-    if (needsDelay) {
-      console.log('Dynamic content detected (Hyperion/Beefy/PancakeSwap) - waiting for content to load...');
-      setTimeout(() => {
-        try {
-          const captureData = performDetailedCapture();
-          sendResponse({ success: true, data: captureData });
-        } catch (error) {
-          console.error('Error capturing data:', error);
-          console.error('Error stack:', error.stack);
-          sendResponse({ success: false, error: error.message || 'Unknown error' });
-        } finally {
-          isCapturing = false;
+    // Use smart waiting for all protocol pages
+    (async () => {
+      try {
+        // Wait for data to be fully loaded
+        if (typeof window.smartWaitForData === 'function') {
+          console.log('🧠 Smart wait for data...');
+          const waitStartTime = Date.now();
+          await window.smartWaitForData();
+          const waitTime = Date.now() - waitStartTime;
+          console.log(`⏱️ Wait completed in ${waitTime}ms`);
+        } else {
+          // Fallback to basic wait if smart wait not available
+          console.log('⚠️ Smart wait not available, using 1s delay');
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      }, 2000); // Wait 2 seconds for content to load
-      return true; // Keep connection open for async response
-    }
 
-    try {
-      const captureData = performDetailedCapture();
-      sendResponse({ success: true, data: captureData });
-    } catch (error) {
-      console.error('Error capturing data:', error);
-      console.error('Error stack:', error.stack);
-      sendResponse({ success: false, error: error.message || 'Unknown error' });
-    } finally {
-      isCapturing = false;
-    }
+        // Capture after data is ready
+        console.log('📸 Starting DOM parsing...');
+        const captureStartTime = Date.now();
+        const captureData = performDetailedCapture();
+        const captureTime = Date.now() - captureStartTime;
+        console.log(`✅ Capture completed in ${captureTime}ms`);
+        sendResponse({ success: true, data: captureData });
+      } catch (error) {
+        console.error('Error capturing data:', error);
+        console.error('Error stack:', error.stack);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
+      } finally {
+        isCapturing = false;
+      }
+    })();
 
-    return true;
+    return true; // Keep connection open for async response
   }
 
   if (request.action === 'highlightElements') {
@@ -54,6 +59,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 function performDetailedCapture() {
+  console.log('📸 performDetailedCapture() called');
+  console.log('URL:', window.location.href);
+  console.log('Hostname:', window.location.hostname);
+
   const capture = {
     timestamp: new Date().toISOString(),
     url: window.location.href,
@@ -315,47 +324,173 @@ function captureTextHierarchy() {
   return hierarchy;
 }
 
+/**
+ * Helper function to extract token breakdown from text
+ * Looks for patterns like:
+ * - "46.5366441 SOL 37.6%" with "$7,612.31" nearby
+ * - "12654.5291 USDC (62.4%) $12,652.93"
+ *
+ * @param {string} text - The text to search in
+ * @param {string} token0 - First token symbol (e.g., "SOL")
+ * @param {string} token1 - Second token symbol (e.g., "USDC")
+ * @returns {object} - Token breakdown with amounts, percentages, and values
+ */
+function extractTokenBreakdown(text, token0, token1) {
+  const breakdown = {};
+
+  if (!text || !token0 || !token1) {
+    return breakdown;
+  }
+
+  // Try multiple patterns for token0
+  // Pattern 1: "46.5366441 SOL 37.6%"
+  // Pattern 2: "46.5366441 SOL (37.6%)"
+  // Pattern 3: "46.5366441 SOL 37.6"
+  const token0Patterns = [
+    new RegExp(`([0-9,.]+)\\s+${token0}\\s+([0-9.]+)%`, 'i'),
+    new RegExp(`([0-9,.]+)\\s+${token0}\\s*\\(\\s*([0-9.]+)%\\s*\\)`, 'i'),
+    new RegExp(`([0-9,.]+)\\s+${token0}\\s+([0-9.]+)(?!\\d)`, 'i')
+  ];
+
+  for (const pattern of token0Patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      breakdown.token0Amount = parseFloat(match[1].replace(/,/g, ''));
+      breakdown.token0Percentage = parseFloat(match[2]);
+
+      // Look for USD value nearby (within 150 chars)
+      const matchIndex = text.indexOf(match[0]);
+      const section = text.substring(matchIndex, matchIndex + 150);
+      const valueMatch = section.match(/\$([0-9,]+\.?[0-9]*)/);
+      if (valueMatch) {
+        breakdown.token0Value = parseFloat(valueMatch[1].replace(/,/g, ''));
+      }
+      break;
+    }
+  }
+
+  // Try same patterns for token1
+  const token1Patterns = [
+    new RegExp(`([0-9,.]+)\\s+${token1}\\s+([0-9.]+)%`, 'i'),
+    new RegExp(`([0-9,.]+)\\s+${token1}\\s*\\(\\s*([0-9.]+)%\\s*\\)`, 'i'),
+    new RegExp(`([0-9,.]+)\\s+${token1}\\s+([0-9.]+)(?!\\d)`, 'i')
+  ];
+
+  for (const pattern of token1Patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      breakdown.token1Amount = parseFloat(match[1].replace(/,/g, ''));
+      breakdown.token1Percentage = parseFloat(match[2]);
+
+      // Look for USD value nearby
+      const matchIndex = text.indexOf(match[0]);
+      const section = text.substring(matchIndex, matchIndex + 150);
+      const valueMatch = section.match(/\$([0-9,]+\.?[0-9]*)/);
+      if (valueMatch) {
+        breakdown.token1Value = parseFloat(valueMatch[1].replace(/,/g, ''));
+      }
+      break;
+    }
+  }
+
+  return breakdown;
+}
+
+/**
+ * Calculate approximate token breakdown when exact values aren't available
+ * Uses simplified 50/50 split assumption
+ */
+function calculateTokenBreakdown(position) {
+  if (!position.balance || !position.currentPrice) {
+    return;
+  }
+
+  // Approximate 50/50 value split
+  position.token0Value = position.balance * 0.5;
+  position.token1Value = position.balance * 0.5;
+  position.token0Percentage = 50;
+  position.token1Percentage = 50;
+
+  // Estimate token amounts
+  if (position.currentPrice > 0) {
+    position.token1Amount = (position.token1Value / position.currentPrice);
+    position.token0Amount = (position.token0Value);
+  }
+}
+
 function captureOrcaCLMPositions() {
+  console.log('🐋 Parsing Orca positions...');
   const positions = [];
 
   // Try to capture portfolio summary
   const portfolioSummary = {};
 
-  // Total Value
-  const totalValueText = Array.from(document.querySelectorAll('*')).find(el =>
-    el.textContent.includes('Total Value') && el.textContent.includes('$')
+  // Total Value - look for the heading and nearby value
+  const totalValueHeading = Array.from(document.querySelectorAll('*')).find(el =>
+    el.textContent.trim() === 'Total Value'
   );
-  if (totalValueText) {
-    const match = totalValueText.textContent.match(/\$([0-9,]+\.[0-9]{2})/);
-    if (match) portfolioSummary.totalValue = match[1].replace(/,/g, '');
+  if (totalValueHeading) {
+    // Look for sibling or parent with the dollar amount
+    let parent = totalValueHeading.parentElement;
+    for (let i = 0; i < 3; i++) {
+      const match = parent?.textContent.match(/\$([0-9,]+\.[0-9]{2})/);
+      if (match) {
+        portfolioSummary.totalValue = match[1].replace(/,/g, '');
+        console.log('Found Total Value:', match[1]);
+        break;
+      }
+      parent = parent?.parentElement;
+    }
   }
 
-  // Estimated Yield
-  const yieldText = Array.from(document.querySelectorAll('*')).find(el =>
-    el.textContent.includes('Estimated Yield') && el.textContent.includes('%')
+  // Estimated Yield (365D)
+  const yieldHeading = Array.from(document.querySelectorAll('*')).find(el =>
+    el.textContent.includes('Estimated Yield') && el.textContent.includes('365D')
   );
-  if (yieldText) {
-    const amountMatch = yieldText.textContent.match(/\$([0-9,]+\.[0-9]{2})/);
-    const percentMatch = yieldText.textContent.match(/([0-9]+\.[0-9]+)%/);
-    if (amountMatch) portfolioSummary.estimatedYieldAmount = amountMatch[1].replace(/,/g, '');
-    if (percentMatch) portfolioSummary.estimatedYieldPercent = percentMatch[1];
+  if (yieldHeading) {
+    let parent = yieldHeading.parentElement;
+    for (let i = 0; i < 3; i++) {
+      const text = parent?.textContent || '';
+      const amountMatch = text.match(/\$([0-9,]+\.[0-9]{2})/);
+      const percentMatch = text.match(/([0-9]+\.[0-9]+)%/);
+      if (amountMatch) {
+        portfolioSummary.estimatedYieldAmount = amountMatch[1].replace(/,/g, '');
+        console.log('Found Estimated Yield Amount:', amountMatch[1]);
+      }
+      if (percentMatch) {
+        portfolioSummary.estimatedYieldPercent = percentMatch[1];
+        console.log('Found Estimated Yield Percent:', percentMatch[1] + '%');
+      }
+      if (amountMatch && percentMatch) break;
+      parent = parent?.parentElement;
+    }
   }
 
   // Pending Yield
-  const pendingText = Array.from(document.querySelectorAll('*')).find(el =>
-    el.textContent.includes('Pending Yield') && el.textContent.includes('$')
+  const pendingHeading = Array.from(document.querySelectorAll('*')).find(el =>
+    el.textContent.trim() === 'Pending Yield'
   );
-  if (pendingText) {
-    const match = pendingText.textContent.match(/\$([0-9,]+\.[0-9]{2})/);
-    if (match) portfolioSummary.pendingYield = match[1].replace(/,/g, '');
+  if (pendingHeading) {
+    let parent = pendingHeading.parentElement;
+    for (let i = 0; i < 3; i++) {
+      const match = parent?.textContent.match(/\$([0-9,]+\.[0-9]{2})/);
+      if (match) {
+        portfolioSummary.pendingYield = match[1].replace(/,/g, '');
+        console.log('Found Pending Yield:', match[1]);
+        break;
+      }
+      parent = parent?.parentElement;
+    }
   }
 
   // Find all table rows with position data
   const rows = document.querySelectorAll('table tbody tr, [role="row"]');
+  console.log(`Found ${rows.length} potential position rows`);
 
   rows.forEach((row, rowIndex) => {
     try {
       const cells = row.querySelectorAll('td, [role="cell"]');
+      console.log(`Row ${rowIndex}: ${cells.length} cells`);
 
       if (cells.length < 6) {
         return; // Need at least 6 cells for position data
@@ -472,17 +607,48 @@ function captureOrcaCLMPositions() {
         }
       }
 
+      // Try to extract token breakdown from details panel if open
+      const detailsPanel = document.querySelector('[role="dialog"], .details-panel, .position-details');
+      if (detailsPanel && position.pair && position.token0 && position.token1) {
+        const detailsText = detailsPanel.innerText || '';
+
+        // Check if this panel is for the current position
+        if (detailsText.includes(position.pair.replace('/', ' / '))) {
+          console.log(`🔍 Found details panel for ${position.pair}`);
+          const breakdown = extractTokenBreakdown(detailsText, position.token0, position.token1);
+
+          if (breakdown.token0Amount) {
+            Object.assign(position, breakdown);
+          }
+        }
+      }
+
+      // If token breakdown not found, try to calculate approximate values
+      if (!position.token0Amount) {
+        calculateTokenBreakdown(position);
+      }
+
       // Add timestamp
       position.capturedAt = new Date().toISOString();
 
       // Only add if we have essential data
       if (position.pair && position.balance) {
+        console.log(`✅ Parsed position: ${position.pair} - $${position.balance}`);
+        if (position.token0Amount) {
+          console.log(`   💰 ${position.token0}: ${position.token0Amount} (${position.token0Percentage}%) = $${position.token0Value}`);
+          console.log(`   💰 ${position.token1}: ${position.token1Amount} (${position.token1Percentage}%) = $${position.token1Value}`);
+        }
         positions.push(position);
+      } else {
+        console.log(`⚠️ Skipped row ${rowIndex}: missing pair or balance`);
       }
     } catch (error) {
-      console.error('Error parsing position row:', error);
+      console.error(`❌ Error parsing position row ${rowIndex}:`, error);
     }
   });
+
+  console.log(`🎯 Final result: ${positions.length} positions captured`);
+  console.log('Summary:', portfolioSummary);
 
   return {
     summary: portfolioSummary,
@@ -595,6 +761,19 @@ function captureRaydiumCLMPositions() {
     }
   }
 
+  // Try to extract token breakdown
+  if (position.token0 && position.token1 && sectionText) {
+    const breakdown = extractTokenBreakdown(sectionText, position.token0, position.token1);
+    if (breakdown.token0Amount) {
+      Object.assign(position, breakdown);
+    }
+  }
+
+  // Fallback: calculate approximate breakdown if not found
+  if (!position.token0Amount) {
+    calculateTokenBreakdown(position);
+  }
+
   position.capturedAt = new Date().toISOString();
 
   console.log('Raydium parsed position:', {
@@ -605,7 +784,9 @@ function captureRaydiumCLMPositions() {
     currentPrice: position.currentPrice,
     rangeMin: position.rangeMin,
     rangeMax: position.rangeMax,
-    inRange: position.inRange
+    inRange: position.inRange,
+    token0Amount: position.token0Amount,
+    token1Amount: position.token1Amount
   });
 
   // Only add if we have essential data
@@ -813,6 +994,17 @@ function captureAerodromeCLMPositions() {
         position.pendingYield = totalPendingUSD;
       }
 
+      // Extract token breakdown
+      if (position.token0 && position.token1) {
+        const breakdown = extractTokenBreakdown(allText, position.token0, position.token1);
+        if (breakdown.token0Amount) {
+          Object.assign(position, breakdown);
+        } else {
+          // Fallback to approximate calculation
+          calculateTokenBreakdown(position);
+        }
+      }
+
       console.log(`Aerodrome: ${position.pair} - $${position.balance.toFixed(2)}`);
 
       positions.push(position);
@@ -914,6 +1106,16 @@ function captureCetusCLMPositions() {
       } else if (isActive !== undefined) {
         position.inRange = isActive;
         position.rangeStatus = isActive ? 'in-range' : 'out-of-range';
+      }
+
+      // Extract token breakdown
+      if (position.token0 && position.token1 && allText) {
+        const breakdown = extractTokenBreakdown(allText, position.token0, position.token1);
+        if (breakdown.token0Amount) {
+          Object.assign(position, breakdown);
+        } else {
+          calculateTokenBreakdown(position);
+        }
       }
 
       position.capturedAt = new Date().toISOString();
@@ -1029,6 +1231,16 @@ function captureHyperionCLMPositions() {
       const isActive = allText.includes('Active');
       position.inRange = isActive;
       position.rangeStatus = isActive ? 'in-range' : 'out-of-range';
+
+      // Extract token breakdown
+      if (position.token0 && position.token1 && allText) {
+        const breakdown = extractTokenBreakdown(allText, position.token0, position.token1);
+        if (breakdown.token0Amount) {
+          Object.assign(position, breakdown);
+        } else {
+          calculateTokenBreakdown(position);
+        }
+      }
 
       position.capturedAt = new Date().toISOString();
 
@@ -1296,6 +1508,16 @@ function capturePancakeSwapCLMPositions() {
           position.currentPrice = unique[2];
           position.inRange = position.currentPrice >= position.rangeMin &&
                            position.currentPrice <= position.rangeMax;
+        }
+      }
+
+      // Extract token breakdown
+      if (position.token0 && position.token1 && allText) {
+        const breakdown = extractTokenBreakdown(allText, position.token0, position.token1);
+        if (breakdown.token0Amount) {
+          Object.assign(position, breakdown);
+        } else {
+          calculateTokenBreakdown(position);
         }
       }
 
@@ -1592,6 +1814,16 @@ function captureBeefyCLMPositions() {
       const dailyYieldMatch = allText.match(/0\.0*[0-9]+%/);
       if (dailyYieldMatch) {
         position.dailyYield = dailyYieldMatch[0];
+      }
+
+      // Extract token breakdown
+      if (position.token0 && position.token1 && allText) {
+        const breakdown = extractTokenBreakdown(allText, position.token0, position.token1);
+        if (breakdown.token0Amount) {
+          Object.assign(position, breakdown);
+        } else {
+          calculateTokenBreakdown(position);
+        }
       }
 
       position.capturedAt = new Date().toISOString();

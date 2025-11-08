@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Position Timeline - History Viewer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 30px;
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 2em;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 1em;
+    }
+
+    .file-loader {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .file-input-wrapper {
+      display: inline-block;
+      position: relative;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+
+    .file-input-label {
+      display: inline-block;
+      padding: 15px 40px;
+      background: #667eea;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1em;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .file-input-label:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    input[type="file"] {
+      position: absolute;
+      left: -9999px;
+    }
+
+    .timeline-container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 30px;
+      display: none;
+    }
+
+    .timeline-header {
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+
+    .timeline-title {
+      font-size: 1.5em;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .timeline-meta {
+      color: #999;
+      font-size: 0.9em;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 40px;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, #667eea, #764ba2);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 40px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      transition: all 0.3s;
+    }
+
+    .timeline-item:hover {
+      transform: translateX(5px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -48px;
+      top: 25px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #667eea;
+      border: 3px solid white;
+      box-shadow: 0 0 0 2px #667eea;
+    }
+
+    .timeline-date {
+      font-size: 0.9em;
+      color: #667eea;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .timeline-content {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .metric {
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      border-left: 3px solid #764ba2;
+    }
+
+    .metric-label {
+      font-size: 0.75em;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    .metric-value {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .position-list {
+      margin-top: 20px;
+    }
+
+    .position-card {
+      background: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      border-left: 4px solid #4caf50;
+    }
+
+    .position-card.out-of-range {
+      border-left-color: #f44336;
+    }
+
+    .position-pair {
+      font-size: 1.1em;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .position-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      font-size: 0.85em;
+      color: #666;
+    }
+
+    .comparison {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 15px;
+      border-left: 4px solid #ffc107;
+    }
+
+    .comparison-title {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #856404;
+    }
+
+    .change {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+
+    .change.positive {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .change.negative {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .change.neutral {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+
+    .empty-state-icon {
+      font-size: 4em;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .timeline {
+        padding-left: 30px;
+      }
+
+      .timeline-content {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📊 Position Timeline Viewer</h1>
+      <p class="subtitle">View historical changes in your CLM positions over time</p>
+    </header>
+
+    <div class="file-loader">
+      <h2>Load Capture Files</h2>
+      <p style="color: #666; margin: 15px 0;">Select multiple JSON files from your captures folder</p>
+
+      <div class="file-input-wrapper">
+        <label for="fileInput" class="file-input-label">
+          📁 Select Capture Files
+        </label>
+        <input type="file" id="fileInput" accept=".json" multiple>
+      </div>
+
+      <div id="fileInfo" style="margin-top: 20px; color: #666; font-size: 0.9em;"></div>
+    </div>
+
+    <div class="timeline-container" id="timelineContainer">
+      <div class="timeline-header">
+        <div class="timeline-title" id="timelineTitle">Loading...</div>
+        <div class="timeline-meta" id="timelineMeta"></div>
+      </div>
+
+      <div class="timeline" id="timeline">
+        <div class="empty-state">
+          <div class="empty-state-icon">📈</div>
+          <h3>No data yet</h3>
+          <p>Upload some capture files to see your position history</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="file-storage.js"></script>
+  <script>
+    let captures = [];
+
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+
+      if (files.length === 0) return;
+
+      document.getElementById('fileInfo').textContent = `Loading ${files.length} file(s)...`;
+
+      // Read all files
+      const fileContents = await Promise.all(
+        files.map(file => readFileAsJSON(file))
+      );
+
+      captures = fileContents.filter(Boolean);
+
+      // Sort by timestamp (newest first)
+      captures.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      document.getElementById('fileInfo').textContent =
+        `✅ Loaded ${captures.length} captures from ${files.length} files`;
+
+      renderTimeline();
+    });
+
+    function readFileAsJSON(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const json = JSON.parse(e.target.result);
+            resolve(json);
+          } catch (error) {
+            console.error('Error parsing', file.name, error);
+            resolve(null);
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    function renderTimeline() {
+      const container = document.getElementById('timelineContainer');
+      const timeline = document.getElementById('timeline');
+      const title = document.getElementById('timelineTitle');
+      const meta = document.getElementById('timelineMeta');
+
+      if (captures.length === 0) {
+        container.style.display = 'none';
+        return;
+      }
+
+      container.style.display = 'block';
+
+      // Set header info
+      const firstCapture = captures[0];
+      const lastCapture = captures[captures.length - 1];
+      const protocol = firstCapture.protocol || 'Unknown';
+      const url = new URL(firstCapture.url).hostname;
+
+      title.textContent = `${protocol} - ${url}`;
+      meta.textContent = `${captures.length} captures from ${new Date(lastCapture.timestamp).toLocaleDateString()} to ${new Date(firstCapture.timestamp).toLocaleDateString()}`;
+
+      // Render timeline items
+      timeline.innerHTML = captures.map((capture, index) => {
+        const nextCapture = captures[index + 1]; // For comparison
+        return renderTimelineItem(capture, nextCapture);
+      }).join('');
+    }
+
+    function renderTimelineItem(capture, previousCapture) {
+      const date = new Date(capture.timestamp);
+      const positions = capture.data?.content?.clmPositions?.positions || [];
+      const summary = capture.data?.content?.clmPositions?.summary || {};
+
+      let comparisonHTML = '';
+      if (previousCapture) {
+        comparisonHTML = renderComparison(capture, previousCapture);
+      }
+
+      return `
+        <div class="timeline-item">
+          <div class="timeline-date">
+            📅 ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}
+          </div>
+
+          <div class="timeline-content">
+            <div class="metric">
+              <div class="metric-label">Total Positions</div>
+              <div class="metric-value">${positions.length}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">In Range</div>
+              <div class="metric-value">${positions.filter(p => p.inRange).length}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Portfolio Value</div>
+              <div class="metric-value">${summary.totalValue ? '$' + parseFloat(summary.totalValue).toLocaleString() : 'N/A'}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Pending Yield</div>
+              <div class="metric-value">${summary.pendingYield ? '$' + parseFloat(summary.pendingYield).toFixed(2) : 'N/A'}</div>
+            </div>
+          </div>
+
+          ${comparisonHTML}
+
+          <div class="position-list">
+            ${positions.map(pos => `
+              <div class="position-card ${pos.inRange ? '' : 'out-of-range'}">
+                <div class="position-pair">
+                  ${pos.pair} ${pos.inRange ? '✓' : '⚠️'}
+                </div>
+                <div class="position-details">
+                  <div>Balance: $${pos.balance?.toFixed(2) || 'N/A'}</div>
+                  <div>APY: ${pos.apy?.toFixed(2) || '0'}%</div>
+                  <div>Price: ${pos.currentPrice?.toFixed(4) || 'N/A'}</div>
+                  <div>Range: ${pos.rangeMin?.toFixed(4) || '?'} - ${pos.rangeMax?.toFixed(4) || '?'}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderComparison(current, previous) {
+      const changes = [];
+
+      const currentPositions = current.data?.content?.clmPositions?.positions || [];
+      const previousPositions = previous.data?.content?.clmPositions?.positions || [];
+
+      // Check for new/removed positions
+      const currentPairs = new Set(currentPositions.map(p => p.pair));
+      const previousPairs = new Set(previousPositions.map(p => p.pair));
+
+      currentPairs.forEach(pair => {
+        if (!previousPairs.has(pair)) {
+          changes.push(`<span class="change positive">NEW: ${pair}</span>`);
+        }
+      });
+
+      previousPairs.forEach(pair => {
+        if (!currentPairs.has(pair)) {
+          changes.push(`<span class="change negative">REMOVED: ${pair}</span>`);
+        }
+      });
+
+      // Check for positions going out of range
+      currentPositions.forEach(currentPos => {
+        const prevPos = previousPositions.find(p => p.pair === currentPos.pair);
+        if (prevPos && prevPos.inRange && !currentPos.inRange) {
+          changes.push(`<span class="change negative">${currentPos.pair} went OUT OF RANGE</span>`);
+        } else if (prevPos && !prevPos.inRange && currentPos.inRange) {
+          changes.push(`<span class="change positive">${currentPos.pair} back IN RANGE</span>`);
+        }
+      });
+
+      if (changes.length === 0) {
+        return '';
+      }
+
+      return `
+        <div class="comparison">
+          <div class="comparison-title">Changes since previous capture:</div>
+          <div>${changes.join(' ')}</div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

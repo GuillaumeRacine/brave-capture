@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "validate": "node scripts/validate-capture.js",
-    "analyze": "node scripts/analyze-capture.js"
+    "analyze": "node scripts/analyze-capture.js",
+    "build:config": "node build-config.js",
+    "setup:db": "node setup-database.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
+    "@supabase/supabase-js": "^2.76.1",
     "dotenv": "^16.4.5"
-  },
-  "devDependencies": {}
+  }
 }

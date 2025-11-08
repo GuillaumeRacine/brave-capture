@@ -160,6 +160,10 @@
       Export Captured Data
     </button>
 
+    <button id="dashboardBtn" class="capture-btn" style="background: rgba(255,255,255,0.2); color: white;">
+      📊 View Dashboard
+    </button>
+
     <div id="message"></div>
     
     <div class="recent-captures" id="recentCaptures" style="display: none;">
@@ -167,7 +171,16 @@
       <div id="capturesList"></div>
     </div>
   </div>
-  
+
+  <!-- Load Supabase client library (local) -->
+  <script src="supabase.js"></script>
+  <!-- Load configuration -->
+  <script src="config.js"></script>
+  <!-- Load Supabase client wrapper -->
+  <script src="supabase-client.js"></script>
+  <!-- Load file storage module -->
+  <script src="file-storage.js"></script>
+  <!-- Load popup logic -->
   <script src="popup.js"></script>
 </body>
 </html>
